@@ -1,79 +1,73 @@
 require "r_tcp_ip/version"
 require "r_tcp_ip/constants"
+require "ffi/packets"
 
 module RTcpIp
   class Packet
-    attr_reader :src_mac, :dst_mac
-    # Expects an array of bytes
-    def initialize(data)
-      @dst_mac = data[0..5].collect { |byte| byte.to_s(16).rjust(2, '0') + ":" }.join.chop
-      @src_mac = data[6..11].collect { |byte| byte.to_s(16).rjust(2, '0') + ":" }.join.chop
+    include FFI::Packets::Constants
 
-      if data[12..13] == [8, 0]
-        @ip = true
+    attr_reader :src_mac, :dst_mac, :ip_hdr
 
-        class << self
-          attr_reader :ip_version, :proto
-        end
-
-        @ip_version = data[14].to_s(16)[0]
-        @ip_header_length = data[14].to_s(16)[1].hex * 4
-        @ip_header = data[14..(14 + @ip_header_length - 1)]
-        @proto = PROTOCOLS[@ip_header[9]] || nil
-
-        case @proto
-          when :tcp
-            @tcp_offset = 14 + @ip_header_length
-            # We only care about the header, which is the first 20 bytes
-            @tcp_header = data[@tcp_offset..(@tcp_offset + 19)]
-          when :udp
-            @udp_offset = 14 + @ip_header_length
-            # Header is 8 bytes
-            @udp_header = data[@tcp_offset..(@tcp_offset + 7)]
-        end
+    # Expects a FFI::MemoryPointer to a packet
+    def initialize(packet)
+      # Get first byte of IP header
+      ip_hdr_start = packet.get_uchar(ETH_HDR_LEN).to_s(16)
+      # First nibble is IP header version
+      if ip_hdr_start[0].hex == 4
+        # Second nibble is IP header length in words (4 bytes)
+        @ip_hdr_len = ip_hdr_start[1].hex * 4
       else
-        @ip = false
+        raise "IPv6 not supported"
       end
-    end
 
-    def ip?
-      @ip
-    end
+      ip_hdr_ptr = FFI::MemoryPointer.from_string(packet.get_array_of_uchar(ETH_HDR_LEN,(@ip_hdr_len)).pack('C*'))
 
-    def ip_flags
-      @ip_header[6].to_s(16)[0]
+      @ip_hdr = FFI::Packets::Ip::Hdr.new(ip_hdr_ptr)
+
+      @tcp = @udp = false
+      case @ip_hdr.proto
+        when IP_PROTO_TCP
+          @tcp = true
+          tcp_hdr_len = packet.get_uchar(@ip_hdr_len + Constants::TCP_LEN_OFFSET + ETH_HDR_LEN).to_s(16)[0].hex * 4
+          tcp_hdr_ptr = FFI::MemoryPointer.from_string(packet.get_array_of_uchar((ETH_HDR_LEN + @ip_hdr_len), tcp_hdr_len).pack('C*'))
+          @l4_hdr = FFI::Packets::Tcp::Hdr.new(tcp_hdr_ptr)
+        when IP_PROTO_UDP
+          @udp = true
+          udp_hdr_ptr = FFI::MemoryPointer.from_string(packet.get_array_of_uchar((ETH_HDR_LEN + @ip_hdr_len), UDP_HDR_LEN).pack('C*'))
+          @l4_hdr = FFI::Packets::Tcp::Hdr.new(udp_hdr_ptr)
+      end
+
+      if @tcp or @udp
+        class << self
+          def sport
+            @l4_hdr.sport
+          end
+
+          def dport
+            @l4_hdr.dport
+          end
+        end
+      end
     end
 
     def tcp?
-      @proto == :tcp
+      @tcp
     end
 
     def udp?
-      @proto == :udp
+      @udp
     end
 
     def src_ip
-      if @ip
-        @ip_header[12..15].collect { |oct| oct.to_s + "." }.join.chop
-      end
+      @ip_hdr.src
     end
+
+    alias_method :src, :src_ip
 
     def dst_ip
-      if @ip
-        @ip_header[16..19].collect { |oct| oct.to_s + "." }.join.chop
-      end
+      @ip_hdr.dst
     end
 
-    def sport
-      if tcp? or udp?
-        @tcp_header[0..1].collect { |oct| oct.to_s(16) }.join.hex
-      end
-    end
-
-    def dport
-      if tcp? or udp?
-        @tcp_header[2..3].collect { |oct| oct.to_s(16) }.join.hex
-      end
-    end
+    alias_method :dst, :dst_ip
   end
 end

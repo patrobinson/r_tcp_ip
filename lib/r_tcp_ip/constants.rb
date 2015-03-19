@@ -1,7 +1,5 @@
 module RTcpIp
-  PROTOCOLS = {
-      1 => :icmp,
-      6 => :tcp,
-      17 => :udp,
-  }
+  module Constants
+    TCP_LEN_OFFSET = 12
+  end
 end
