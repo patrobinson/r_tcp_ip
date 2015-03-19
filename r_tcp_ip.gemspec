@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.version       = RTcpIp::VERSION
   spec.authors       = ["nemski"]
   spec.email         = ["nemski.rabbit@gmail.com"]
-  spec.summary       = %q{A hack to get source/destination port/ip from a TCP or UDP header}
-  spec.description   = %q{}
+  spec.summary       = %q{A convenience library for using FFI::Pcap and FFI::Packets}
+  spec.description   = %q{Takes a FFI::MemoryPointer to a packet and maps IP and TCP/UDP headers to be passed to FFI::Packets::{Ip,Udp,Tcp}}
   spec.homepage      = "https://github.com/nemski/r_tcp_ip"
   spec.license       = "MIT"
 

@@ -1,6 +1,6 @@
 # RTcpIp
 
-TODO: Write a gem description
+A convenience library for using FFI::Pcap and FFI::Packets
 
 ## Installation
 
@@ -20,11 +20,20 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+require 'r_tcp_ip'
+require 'ffi/pcap'
+cap = FFI::Pcap::Offline.new("dump.pcap")
+cap.loop do |this,pkt|
+  packet = RTcpIp::Packet.new(pkt.body_ptr)
+  puts "source_ip=#{packet.src} dest_ip=#{packet.dst} source_port=#{packet.sport} dest_port=#{packet.dport}"
+end
+```
+
 
 ## Contributing
 
-1. Fork it ( https://github.com/[my-github-username]/r_tcp_ip/fork )
+1. Fork it ( https://github.com/nemski/r_tcp_ip/fork )
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
